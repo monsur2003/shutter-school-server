@@ -25,6 +25,27 @@ const client = new MongoClient(uri, {
    },
 });
 
+const verifyJwt = (req, res, next) => {
+   const authorization = req.headers.authorization;
+   if (!authorization) {
+      return res
+         .status(401)
+         .send({ error: true, message: "Unauthorized access" });
+   }
+   const token = authorization.split(" ")[1];
+   jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+      if (err) {
+         return res
+            .status(401)
+            .send({ error: true, message: "Unauthorized access" });
+      }
+
+      req.decoded = decoded;
+
+      next();
+   });
+};
+
 async function run() {
    try {
       // Connect the client to the server	(optional starting in v4.7)
@@ -56,6 +77,18 @@ async function run() {
          const result = await userCollection.insertOne(user);
          res.send(result);
       });
+
+      // make jwt api
+      app.post("/jwt", async (req, res) => {
+         const user = req.body;
+         console.log(user);
+
+         const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
+            expiresIn: "1hr",
+         });
+         res.send({ token });
+      });
+
       // find user collection
       app.get("/users", async (req, res) => {
          const result = await userCollection.find().toArray();
@@ -96,7 +129,27 @@ async function run() {
          const result = await selectedClassCollection.insertOne(selectClass);
          res.send(result);
       });
+      //   find selected class by email address
 
+      app.get("/selectedClasses", verifyJwt, async (req, res) => {
+         const email = req.query.email;
+         console.log(email);
+
+         const dMail = req.decoded.email;
+         if (email !== dMail) {
+            res.status(403).send({
+               error: true,
+               message: "forbidden access",
+            });
+         } else if (!email) {
+            return res.send([]);
+         }
+         const query = { email: email };
+         const result = await selectedClassCollection.find(query).toArray();
+         res.send(result);
+      });
+
+      //
       // Send a ping to confirm a successful connection
       await client.db("admin").command({ ping: 1 });
       console.log(
