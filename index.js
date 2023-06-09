@@ -30,12 +30,42 @@ async function run() {
       // Connect the client to the server	(optional starting in v4.7)
       await client.connect();
 
+      //   collection section
       const classCollection = client
          .db("shutterSchoolDb")
          .collection("classes");
+      const selectedClassCollection = client
+         .db("shutterSchoolDb")
+         .collection("selectedClasses");
+      const userCollection = client.db("shutterSchoolDb").collection("users");
 
       app.get("/classes", async (req, res) => {
          const result = await classCollection.find().toArray();
+         res.send(result);
+      });
+
+      //    login user  api
+      app.post("/users", async (req, res) => {
+         const user = req.body;
+         const query = { email: user.email };
+         const existingUser = await userCollection.findOne(query);
+         if (existingUser) {
+            return res.send({ err0r: "account already exists" });
+         }
+
+         const result = await userCollection.insertOne(user);
+         res.send(result);
+      });
+      // find user collection
+      app.get("/users", async (req, res) => {
+         const result = await userCollection.find().toArray();
+         res.send(result);
+      });
+
+      //   selected items  set on db
+      app.post("/selectedClasses", async (req, res) => {
+         const selectClass = req.body;
+         const result = await selectedClassCollection.insertOne(selectClass);
          res.send(result);
       });
 
