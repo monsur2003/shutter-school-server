@@ -72,10 +72,41 @@ async function run() {
          res.send(result);
       });
 
+      //   update class
+
+      app.put("/classes/:id", async (req, res) => {
+         const id = req.params.id;
+         const filter = { _id: new ObjectId(id) };
+
+         const body = req.body;
+         console.log(body);
+         const updateClass = {
+            $set: {
+               name: body.name,
+               price: body.price,
+               seats: body.seats,
+               image: body.image,
+               status: "pending",
+               feedback: "",
+            },
+         };
+         const result = await classCollection.updateOne(filter, updateClass);
+         res.send(result);
+      });
+
+      //   show class collection with specific email for instructor
+
+      app.get("/myClasses", async (req, res) => {
+         const email = req.query.email;
+         const query = { instructor_email: email };
+         const result = await classCollection.find(query).toArray();
+         res.send(result);
+      });
+
       //--------   approve class form admin
       app.patch("/classes/approve/:id", async (req, res) => {
          const id = req.params.id;
-         console.log("admin approval agaaaaaaaain", id);
+
          const filter = { _id: new ObjectId(id) };
          const updateDoc = {
             $set: {
@@ -94,6 +125,23 @@ async function run() {
          const updateDoc = {
             $set: {
                status: "denied",
+            },
+         };
+         const result = await classCollection.updateOne(filter, updateDoc);
+         res.send(result);
+      });
+
+      //   feedback from admin on class api
+
+      app.patch("/classes/feedback/:id", async (req, res) => {
+         const id = req.params.id;
+         const filter = { _id: new ObjectId(id) };
+         const body = req.body;
+
+         console.log(body);
+         const updateDoc = {
+            $set: {
+               feedback: body.feedback,
             },
          };
          const result = await classCollection.updateOne(filter, updateDoc);
