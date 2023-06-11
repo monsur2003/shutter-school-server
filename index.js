@@ -33,7 +33,7 @@ const verifyJwt = (req, res, next) => {
          .send({ error: true, message: "Unauthorized access" });
    }
    const token = authorization.split(" ")[1];
-   jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+   jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
       if (err) {
          return res
             .status(401)
@@ -65,13 +65,20 @@ async function run() {
          res.send(result);
       });
 
+      //   add class from instructor api
+      app.post("/classes", async (req, res) => {
+         const body = req.body;
+         const result = await classCollection.insertOne(body);
+         res.send(result);
+      });
+
       //    login user  api
       app.post("/users", async (req, res) => {
          const user = req.body;
          const query = { email: user.email };
          const existingUser = await userCollection.findOne(query);
          if (existingUser) {
-            return res.send({ err0r: "account already exists" });
+            return res.send({ error: "account already exists" });
          }
 
          const result = await userCollection.insertOne(user);
@@ -84,7 +91,7 @@ async function run() {
          console.log(user);
 
          const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
-            expiresIn: "1hr",
+            expiresIn: "1h",
          });
          res.send({ token });
       });
@@ -123,6 +130,27 @@ async function run() {
          res.send(result);
       });
 
+      // find admin by email/ role
+
+      app.get("/users/admin/:email", async (req, res) => {
+         const email = req.params.email;
+
+         const query = { email: email };
+         const user = await userCollection.findOne(query);
+         const result = { admin: user.role === "admin" };
+         res.send(result);
+      });
+
+      //   find instructors by email/role
+
+      app.get("/users/instructor/:email", async (req, res) => {
+         const email = req.params.email;
+         const query = { email: email };
+         const user = await userCollection.findOne(query);
+         const result = { instructor: user.role === "instructor" };
+         res.send(result);
+      });
+
       //   selected items  set on db
       app.post("/selectedClasses", async (req, res) => {
          const selectClass = req.body;
@@ -137,7 +165,7 @@ async function run() {
 
          const dMail = req.decoded.email;
          if (email !== dMail) {
-            res.status(403).send({
+            return res.status(403).send({
                error: true,
                message: "forbidden access",
             });
@@ -146,6 +174,14 @@ async function run() {
          }
          const query = { email: email };
          const result = await selectedClassCollection.find(query).toArray();
+         res.send(result);
+      });
+
+      //   delete selected class
+      app.delete("/selectedClass/:id", async (req, res) => {
+         const id = req.params.id;
+         const query = { _id: new ObjectId(id) };
+         const result = await selectedClassCollection.deleteOne(query);
          res.send(result);
       });
 
