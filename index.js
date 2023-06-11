@@ -72,6 +72,34 @@ async function run() {
          res.send(result);
       });
 
+      //--------   approve class form admin
+      app.patch("/classes/approve/:id", async (req, res) => {
+         const id = req.params.id;
+         console.log("admin approval agaaaaaaaain", id);
+         const filter = { _id: new ObjectId(id) };
+         const updateDoc = {
+            $set: {
+               status: "approved",
+            },
+         };
+         const result = await classCollection.updateOne(filter, updateDoc);
+         console.log("update success");
+         res.send(result);
+      });
+      //   denied class from admin
+      app.patch("/classes/deny/:id", async (req, res) => {
+         const id = req.params.id;
+         console.log("deny from admin", id);
+         const filter = { _id: new ObjectId(id) };
+         const updateDoc = {
+            $set: {
+               status: "denied",
+            },
+         };
+         const result = await classCollection.updateOne(filter, updateDoc);
+         res.send(result);
+      });
+
       //    login user  api
       app.post("/users", async (req, res) => {
          const user = req.body;
