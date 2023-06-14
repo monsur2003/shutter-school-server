@@ -1,5 +1,8 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(
+   "sk_test_51NI84IIDxQu5C7rGEqXNPmjuH0SKl09Wjt3I3O6DQxyGHxs9v56VoBpLlX99lQ4c9FCt3QHQ8yXecgrLi9N0uW4c00Vp7u6afB"
+);
 const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
@@ -49,7 +52,7 @@ const verifyJwt = (req, res, next) => {
 async function run() {
    try {
       // Connect the client to the server	(optional starting in v4.7)
-      await client.connect();
+      // await client.connect();
 
       //   collection section
       const classCollection = client
@@ -59,6 +62,10 @@ async function run() {
          .db("shutterSchoolDb")
          .collection("selectedClasses");
       const userCollection = client.db("shutterSchoolDb").collection("users");
+
+      const paymentCollection = client
+         .db("shutterSchoolDb")
+         .collection("paymentCollection");
 
       app.get("/classes", async (req, res) => {
          const result = await classCollection.find().toArray();
@@ -173,7 +180,7 @@ async function run() {
       });
 
       // find user collection
-      app.get("/users", async (req, res) => {
+      app.get("/users", verifyJwt, async (req, res) => {
          const result = await userCollection.find().toArray();
          res.send(result);
       });
@@ -213,7 +220,7 @@ async function run() {
 
          const query = { email: email };
          const user = await userCollection.findOne(query);
-         const result = { admin: user.role === "admin" };
+         const result = { admin: user?.role === "admin" };
          res.send(result);
       });
 
@@ -223,7 +230,7 @@ async function run() {
          const email = req.params.email;
          const query = { email: email };
          const user = await userCollection.findOne(query);
-         const result = { instructor: user.role === "instructor" };
+         const result = { instructor: user?.role === "instructor" };
          res.send(result);
       });
 
@@ -261,8 +268,73 @@ async function run() {
          res.send(result);
       });
 
-      //
-      // Send a ping to confirm a successful connection
+      app.post("/create-payment-intent", verifyJwt, async (req, res) => {
+         const { price } = req.body;
+         const amount = parseInt(price * 100);
+         const paymentIntent = await stripe.paymentIntents.create({
+            amount: amount,
+            currency: "usd",
+            payment_method_types: ["card"],
+         });
+
+         res.send({
+            clientSecret: paymentIntent.client_secret,
+         });
+      });
+
+      // payment related api
+      app.post("/payments", async (req, res) => {
+         const payment = req.body;
+         const insertResult = await paymentCollection.insertOne(payment);
+
+         const filter = { _id: new ObjectId(payment.enrolledId) };
+         const enrolledClasses = await classCollection.findOne(filter);
+
+         const updateDoc = {
+            $set: {
+               seats: enrolledClasses.seats - 1,
+            },
+         };
+
+         const updatedSeats = await classCollection.updateOne(
+            filter,
+            updateDoc
+         );
+
+         const updateEnrolled = {
+            $set: {
+               enrolled: enrolledClasses.enrolled + 1,
+            },
+         };
+
+         const updateEnrolledClass = await classCollection.updateOne(
+            filter,
+            updateEnrolled
+         );
+
+         const query = {
+            _id: new ObjectId(payment.selectedId),
+         };
+         const deleteResult = await selectedClassCollection.deleteOne(query);
+
+         res.send({
+            insertResult,
+            deleteResult,
+            updatedSeats,
+            updateEnrolledClass,
+         });
+      });
+
+      app.get("/payment/email", async (req, res) => {
+         const email = req.query.email;
+         if (!email) {
+            return res.status(400).send("Email parameter is missing.");
+         }
+         const query = { email: email };
+         const result = await paymentCollection.find(query).toArray();
+         res.send(result);
+      });
+
       await client.db("admin").command({ ping: 1 });
       console.log(
          "Pinged your deployment. You successfully connected to MongoDB!"
